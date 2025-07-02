@@ -1,50 +1,39 @@
+# streamlit_app.py
 import streamlit as st
 import pandas as pd
 import tempfile
-from App import genetic_algorithm 
-import os
+from full_system import run_full_algorithm_from_df
 
-DAYS = ['T2', 'T3', 'T4', 'T5', 'T6']
-SLOTS = ['Sáng', 'Chiều']
+st.set_page_config(page_title="Thời khóa biểu", layout="centered")
 
-def main():
-    st.title("📅 Thời khóa biểu cho giáo viên ")
+st.title("🗓️ Tạo thời khóa biểu")
 
-    uploaded_file = st.file_uploader("📤 Tải file Timetable.xlsx", type=["xlsx"])
+uploaded_file = st.file_uploader("📄 Tải lên file Timetable.xlsx", type=["xlsx"])
 
-    if uploaded_file:
-        try:
-            df = pd.read_excel(uploaded_file)
-            df = df[['Mã_lớp', 'Phòng']].dropna()
-            classes = df['Mã_lớp'].unique().tolist()
-            rooms = df['Phòng'].unique().tolist()
+if uploaded_file:
+    try:
+        df = pd.read_excel(uploaded_file)
 
-            st.success(f"✅ Đã đọc dữ liệu: {len(classes)} lớp, {len(rooms)} phòng.")
+        required_columns = {"Trường_Viện_Khoa", "Mã_lớp", "Phòng"}
+        if not required_columns.issubset(df.columns):
+            st.error("❌ File phải chứa các cột: Trường_Viện_Khoa, Mã_lớp, Phòng")
+        else:
+            st.success(f"✅ Đã đọc {len(df)} dòng dữ liệu. Gồm {df['Trường_Viện_Khoa'].nunique()} nhóm.")
 
             if st.button("🚀 Tạo thời khóa biểu"):
-                with st.spinner("Đang chạy thuật toán..."):
-                    best_schedule = genetic_algorithm(classes, rooms)
-
-                    output = pd.DataFrame([
-                        {"Mã_lớp": cls, "Thứ": day, "Buổi": slot, "Phòng": room}
-                        for cls, (day, slot, room) in best_schedule.items()
-                    ])
-
-                    st.success("🎉 Tạo thời khóa biểu thành công!")
-
-                    st.dataframe(output)
+                with st.spinner("⏳ Đang chạy thuật toán di truyền..."):
+                    result_df = run_full_algorithm_from_df(df)
+                    st.success("🎉 Tạo lịch thành công!")
+                    st.dataframe(result_df.head(50))
 
                     with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
-                        output.to_excel(tmp.name, index=False)
+                        result_df.to_excel(tmp.name, index=False)
                         st.download_button(
-                            label="📥 Tải file kết quả",
+                            label="📅 Tải file Full_Timetable.xlsx",
                             data=open(tmp.name, "rb").read(),
-                            file_name="Best_Timetable.xlsx",
+                            file_name="Full_Timetable.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         )
 
-        except Exception as e:
-            st.error(f"❌ Lỗi khi xử lý file: {e}")
-
-if __name__ == "__main__":
-    main()
+    except Exception as e:
+        st.error(f"❌ Lỗi khi xử lý file: {e}")
